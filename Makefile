@@ -16,7 +16,7 @@ datos: ## regenera data.js leyendo las bases de los dos agentes
 demo: ## regenera data.js con datos fabricados (sin tocar ninguna base)
 	python3 build_data.py --demo
 
-servir: ## levanta el tablero en local (http://localhost:$(PUERTO))
+servir: ## levanta el tablero en local (PUERTO=8095 por defecto)
 	@echo "http://localhost:$(PUERTO)"
 	PORT=$(PUERTO) python3 serve.py
 
