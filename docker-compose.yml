@@ -2,10 +2,14 @@
 # dos repos, no levanta ninguna.
 #
 # Las dos bases llegan distinto, porque son distintas:
-#   LeIA  archivo SQLite, se monta desde el disco del host (o desde el volumen
-#         de LeIA si el tablero corre en la misma máquina que el agente).
-#   GDP   Postgres, se llega por red con el rol `tablero` (solo SELECT). Si su
-#         base corre en Docker, hay que compartir su red: ver `redes` abajo.
+#   LeIA  archivo SQLite -> se monta el volumen del stack de LeIA.
+#   GDP   Postgres       -> se entra a su red interna y se le habla a `db`.
+# Por eso el volumen y la red son `external`: son de otros compose, este no los
+# crea ni los borra. Si alguno no existe, `up` falla diciendo cuál falta.
+#
+# En una máquina donde los agentes NO corren en Docker, el volumen se reemplaza
+# por un bind mount a la carpeta que tiene gestora.db, y GDP_BD_URL apunta al
+# host en vez de a `db`.
 
 services:
   dashboard:
@@ -15,8 +19,9 @@ services:
       LEIA_DB_PATH: /datos/leia/gestora.db
       # Rol de SOLO LECTURA del agente GDP (db/04_rol_tablero.sh en ese repo).
       # Nunca el rol `agente`: ese escribe, y un proceso de reporting no tiene
-      # por qué poder.
-      GDP_BD_URL: ${GDP_BD_URL:-}
+      # por qué poder. El default con la clave de dev es el mismo que usa el
+      # compose de GDP; en un despliegue real se pasa GDP_BD_URL.
+      GDP_BD_URL: ${GDP_BD_URL:-postgresql://tablero:dev-solo-local@db:5432/agente}
       # Cuentas que no son uso real (internas, QA, la batería de evaluación).
       LEIA_EXCLUIR_USUARIOS: ${LEIA_EXCLUIR_USUARIOS:-dacuna,admin,cpardave,dbaldeon}
       GDP_EXCLUIR_EMAILS: ${GDP_EXCLUIR_EMAILS:-evaluacion@prestamype.com,qa@prestamype.com}
@@ -24,20 +29,22 @@ services:
       PORT: 8080
     volumes:
       # Montaje rw a propósito, aunque el tablero no escriba: la base de LeIA
-      # está en WAL y SQLite necesita tocar el -shm para leer lo que todavía
-      # vive en el -wal. Con :ro fallaría al abrir, o mostraría datos viejos
-      # hasta el próximo checkpoint. La conexión sí es read-only (mode=ro).
-      - ${LEIA_DB_DIR:-../LeIA/db}:/datos/leia
+      # está en WAL y SQLite necesita el -shm para leer lo que todavía vive en
+      # el -wal. La conexión sí es read-only (mode=ro), y el contenedor corre
+      # con un usuario que no es dueño de esos archivos: no puede escribirlos
+      # ni queriendo.
+      - leia-db:/datos/leia
+    networks: [ gdp ]
     ports:
       - "${PUERTO_TABLERO:-8095}:8080"
     restart: unless-stopped
 
-# Para llegar al Postgres del agente GDP corriendo en Docker: descomentar, y
-# poner GDP_BD_URL=postgresql://tablero:CLAVE@db:5432/agente
-#
-#    networks: [ gdp ]
-#
-# networks:
-#   gdp:
-#     external: true
-#     name: agente_indicadores_gdp_interna
+volumes:
+  leia-db:
+    external: true
+    name: ${LEIA_VOLUMEN:-leia-db-data}
+
+networks:
+  gdp:
+    external: true
+    name: ${RED_GDP:-agente_indicadores_gdp_interna}
