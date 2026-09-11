@@ -1,4 +1,4 @@
-"""Fuente Analyst Agent — memoria de Bedrock AgentCore (AWS).
+"""Fuente Agente CS — memoria de Bedrock AgentCore (AWS).
 
 Una consulta = un item de rol USER dentro de un evento de la memoria. Cada
 evento es un turno (pregunta + respuesta), así que contar los USER cuenta
@@ -29,8 +29,8 @@ from pathlib import Path
 
 from . import base
 
-NOMBRE = "Analyst Agent"
-DESCRIPCION = "Consultas de CS · memoria de AgentCore"
+NOMBRE = "Agente CS"
+DESCRIPCION = "Consultas del equipo de CS · memoria de AgentCore"
 
 MEMORIA_POR_DEFECTO = "prod_analyst_agent_memory-gHFPoM4f9d"
 POOL_POR_DEFECTO = "prod-analyst-agent-users"
@@ -139,7 +139,7 @@ def nombres() -> dict[str, str]:
 
 # -------------------------------------------------------------- la memoria
 def leer() -> list[dict]:
-    """Los eventos del Analyst Agent. Levanta si AWS no responde."""
+    """Los eventos del Agente CS. Levanta si AWS no responde."""
     mem = memoria()
     cli = _cliente("bedrock-agentcore")
 

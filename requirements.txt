@@ -3,5 +3,5 @@
 # driver tiene que hablar el mismo protocolo que su base, y un pin que se
 # desvía es un debug que nadie quiere hacer dos veces.
 psycopg[binary]==3.2.9
-# Analyst Agent: memoria de Bedrock AgentCore y los nombres desde Cognito.
+# Agente CS: memoria de Bedrock AgentCore y los nombres desde Cognito.
 boto3==1.40.15

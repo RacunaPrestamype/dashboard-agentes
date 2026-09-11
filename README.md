@@ -6,7 +6,7 @@ Un solo tablero para los tres agentes:
 |-----------|---------------------|-------------------------------------------|--------------------------|
 | `leia`    | **LeIA**            | consultas a la plataforma Gestora          | SQLite (`gestora.db`)    |
 | `gdp`     | **Indicadores GDP** | diseño de indicadores · Gerencia de Datos  | Postgres (rol `tablero`) |
-| `analyst` | **Analyst Agent**   | consultas de CS                            | memoria de Bedrock AgentCore |
+| `analyst` | **Agente CS**       | consultas del equipo de CS                 | memoria de Bedrock AgentCore |
 
 Es el tablero de LeIA —mismo formato, mismos tres gráficos— con un selector de
 agente arriba. Cada agente guarda su uso en otro lado y con otros nombres; acá
@@ -58,7 +58,7 @@ la última semana **con movimiento**, no en la última del calendario.
 
 ```bash
 cp .env.example .env          # y completar lo que haga falta
-pip install -r requirements.txt   # psycopg (GDP) y boto3 (Analyst)
+pip install -r requirements.txt   # psycopg (GDP) y boto3 (Agente CS)
 make datos                    # genera data.js leyendo las tres fuentes
 make servir                   # http://localhost:8095
 ```
@@ -97,7 +97,7 @@ Todo por variables de entorno; ninguna es obligatoria.
 | `LEIA_EXCLUIR_USUARIOS`    | `dacuna,admin,cpardave,dbaldeon`              | cuentas internas; se comparan contra la parte local del correo |
 | `GDP_BD_URL`               | *(vacío)*                                     | Postgres del agente GDP, con el rol `tablero` |
 | `GDP_EXCLUIR_EMAILS`       | `evaluacion@prestamype.com,qa@prestamype.com` | cuentas de QA y de la batería de evaluación |
-| `AWS_PROFILE`              | `prod`                                        | la sesión de AWS para el Analyst Agent |
+| `AWS_PROFILE`              | `prod`                                        | la sesión de AWS para el Agente CS |
 | `ANALYST_MEMORY_ID`        | `prod_analyst_agent_memory-gHFPoM4f9d`        | la memoria de AgentCore que se lee |
 | `ANALYST_COGNITO_POOL`     | *(se busca por nombre)*                       | el user pool del que salen los nombres |
 | `ANALYST_EXCLUIR_USUARIOS` | *(vacío)*                                     | ver abajo |
@@ -105,7 +105,7 @@ Todo por variables de entorno; ninguna es obligatoria.
 | `PUERTO_TABLERO`           | `8095`                                        | puerto publicado por compose |
 | `UID_HOST` / `GID_HOST`    | `1000`                                        | con qué usuario corre el contenedor, para poder leer `~/.aws` |
 
-**El Analyst no excluye a nadie por defecto.** En LeIA y GDP la lista de cuentas
+**El Agente CS no excluye a nadie por defecto.** En LeIA y GDP la lista de cuentas
 internas ya estaba decidida en esos repos; acá no la decidió nadie todavía, y
 `dacuna` sola es un cuarto del tráfico del agente: esconderla por defecto sería
 falsear el uso. Cuando se sepa cuáles son de prueba, van en
@@ -123,7 +123,7 @@ Cada fuente se conecta con lo mínimo para leer:
 - **GDP** usa el rol `tablero`, que solo tiene `SELECT` (`db/04_rol_tablero.sh`
   en ese repo). Nunca el rol `agente`: ese escribe, y un proceso de reporting no
   tiene por qué poder.
-- **Analyst** solo hace llamadas `list_*` a AgentCore y a Cognito. Las
+- **Agente CS** solo hace llamadas `list_*` a AgentCore y a Cognito. Las
   credenciales son las del host, montadas en `/aws` en solo lectura.
 
 Lo único que este proceso escribe es su propio `data.js`.
@@ -132,7 +132,7 @@ Lo único que este proceso escribe es su propio `data.js`.
 
 ## 4. De dónde sale cada número
 
-|              | LeIA                                 | GDP | Analyst |
+|              | LeIA                                 | GDP | Agente CS |
 |--------------|--------------------------------------|-----|---------|
 | una consulta | fila de `turns`                      | fila de `turnos` con `estado <> 'en_curso'` | item de rol `USER` en un evento |
 | usuario      | `chats.user_id` → `users`            | `conversaciones.usuario_id` → `usuarios` | `actorId` (el `sub` de Cognito) |
@@ -147,7 +147,7 @@ Cuatro decisiones que vale explicitar:
   proceso murió—, no preguntas atendidas.
 - **La hora es siempre la de Lima.** Sin convertir, todo lo de después de las
   19:00 cae en el día siguiente y los días pico salen corridos.
-- **Los nombres del Analyst se resuelven contra Cognito**, porque el `actorId` es
+- **Los nombres del Agente CS se resuelven contra Cognito**, porque el `actorId` es
   un UUID y un pie con seis UUIDs no dice nada. Si el pool no se puede leer, el
   tablero muestra el UUID corto y sigue: que no se resuelva un nombre no es
   motivo para no mostrar el uso.
@@ -168,7 +168,7 @@ fuentes/
   base.py         semanas, agregación y el formato del evento. No sabe de fuentes.
   leia.py         SQLite de LeIA        -> consultas
   gdp.py          Postgres de GDP       -> consultas
-  analyst.py      AgentCore + Cognito   -> consultas
+  analyst.py      AgentCore + Cognito   -> consultas  (Agente CS)
 ```
 
 El corte es ese: **una fuente sabe de su origen y de nada más**, y devuelve

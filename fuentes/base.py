@@ -1,7 +1,7 @@
 """Lo que comparten los agentes: el calendario de semanas y la agregación.
 
 Este módulo no sabe de SQLite, de Postgres ni de AWS. Cada fuente (`leia.py`,
-`gdp.py`, `analyst.py`) se encarga de su base y devuelve la misma lista de
+`gdp.py`, `analyst.py` (Agente CS)) se encarga de su base y devuelve la misma lista de
 **eventos**:
 
     {"usuario": "czelada", "cuando": datetime(hora Lima, naive)}

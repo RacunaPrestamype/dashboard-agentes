@@ -3,7 +3,7 @@
 # build_data.py — genera data.js leyendo la base de cada agente
 #
 # Un solo tablero para los tres agentes: LeIA (SQLite), Indicadores GDP
-# (Postgres) y Analyst Agent (memoria de Bedrock AgentCore). Cada fuente vive en
+# (Postgres) y Agente CS (memoria de Bedrock AgentCore). Cada fuente vive en
 # `fuentes/` y devuelve la misma lista de consultas; acá se agregan por semana,
 # por usuario y por día, y se escribe el archivo que consume index.html.
 #

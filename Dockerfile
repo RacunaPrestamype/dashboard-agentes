@@ -11,13 +11,13 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /srv
 
 # sqlite3 (LeIA) viene en la stdlib; el driver de Postgres (GDP) y boto3
-# (Analyst) no.
+# (Agente CS) no.
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY index.html data.js build_data.py serve.py ./
 COPY fuentes/ ./fuentes/
-# Opcional: el mapeo a mano actorId -> nombre del Analyst Agent. El corchete
+# Opcional: el mapeo a mano actorId -> nombre del Agente CS. El corchete
 # hace que el COPY no falle si el archivo no existe.
 COPY actors_map.jso[n] ./
 
