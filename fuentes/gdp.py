@@ -1,8 +1,6 @@
 """Fuente GDP — Postgres del agente de diseño de indicadores.
 
-Dos tablas dan los dos tipos de evento:
-  conversaciones -> `conversaciones` (una fila por sesión del chat)
-  consultas      -> `turnos`         (una corrida del grafo = una pregunta)
+Una consulta = una fila de `turnos` (una corrida del grafo = una pregunta).
 
 Tres cosas que vale saber de este esquema:
 
@@ -42,14 +40,6 @@ _SIN_EXCLUIDOS = "lower(u.email) <> ALL(%(excluidos)s)"
 # El nombre para mostrar: el del IdP si lo mandó, si no el correo sin dominio.
 _NOMBRE = "COALESCE(NULLIF(btrim(u.nombre), ''), split_part(u.email, '@', 1))"
 
-CONVERSACIONES = f"""
-SELECT {_NOMBRE} AS usuario,
-       (c.creada_en AT TIME ZONE 'America/Lima') AS cuando
-FROM conversaciones c
-JOIN usuarios u ON u.id = c.usuario_id
-WHERE {_SIN_EXCLUIDOS}
-"""
-
 CONSULTAS = f"""
 SELECT {_NOMBRE} AS usuario,
        (t.inicio AT TIME ZONE 'America/Lima') AS cuando
@@ -77,15 +67,9 @@ def leer() -> list[dict]:
 
     import psycopg                     # solo se importa si la fuente se usa
 
-    parametros = {"excluidos": _excluidos()}
-    eventos = []
     with psycopg.connect(url(), connect_timeout=5) as conn, conn.cursor() as cur:
-        for tipo, sql in (("conversacion", CONVERSACIONES),
-                          ("consulta", CONSULTAS)):
-            cur.execute(sql, parametros)
-            eventos += [base.evento(usuario, cuando, tipo)
-                        for usuario, cuando in cur.fetchall()]
-    return eventos
+        cur.execute(CONSULTAS, {"excluidos": _excluidos()})
+        return [base.evento(usuario, cuando) for usuario, cuando in cur.fetchall()]
 
 
 def disponible() -> tuple[bool, str]:

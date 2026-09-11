@@ -128,13 +128,6 @@
       <select id="agenteSel"></select>
     </div>
     <div class="campo">
-      <label for="metricaSel">Métrica</label>
-      <select id="metricaSel">
-        <option value="conversaciones">Conversaciones</option>
-        <option value="consultas">Consultas</option>
-      </select>
-    </div>
-    <div class="campo">
       <label for="weekSel">Semana</label>
       <select id="weekSel"></select>
     </div>
@@ -148,7 +141,7 @@
   <div class="aviso" id="aviso"></div>
 
   <section class="kpis">
-    <div class="kpi">      <span class="num" id="kpiTotal">–</span><span class="lab" id="kpiTotalLab">Conversaciones en la semana</span></div>
+    <div class="kpi">      <span class="num" id="kpiTotal">–</span><span class="lab">Consultas en la semana</span></div>
     <div class="kpi b2">   <span class="num" id="kpiUsers">–</span><span class="lab">Usuarios activos</span></div>
     <div class="kpi b3">   <span class="num" id="kpiAvg">–</span><span class="lab">Promedio por día</span></div>
     <div class="kpi b4">   <span class="num" id="kpiPeak">–</span><span class="lab">Día pico</span></div>
@@ -158,21 +151,21 @@
     <!-- Izquierda: PIE -->
     <div class="card">
       <div class="head"><span class="bar"></span><h2>% de uso por usuario</h2></div>
-      <p class="sub" id="subPie">Top 5 usuarios · el resto agrupado en «Otros»</p>
+      <p class="sub">Top 5 usuarios de la semana · el resto agrupado en «Otros»</p>
       <div class="chartbox pie"><canvas id="pieChart"></canvas><div class="vacio" id="vacioPie"></div></div>
     </div>
 
     <!-- Derecha: BARRAS + LÍNEAS -->
     <div class="col-right">
       <div class="card">
-        <div class="head"><span class="bar"></span><h2 id="tituloBar">Conversaciones por semana</h2></div>
+        <div class="head"><span class="bar"></span><h2>Consultas por semana</h2></div>
         <p class="sub">Volumen total de todas las semanas · clic en una barra para verla</p>
         <div class="chartbox bar"><canvas id="barChart"></canvas><div class="vacio" id="vacioBar"></div></div>
       </div>
 
       <div class="card">
-        <div class="head"><span class="bar"></span><h2 id="tituloLine">Conversaciones por usuario · días de la semana</h2></div>
-        <p class="sub" id="subLine">Conversaciones por usuario y día · líneas independientes</p>
+        <div class="head"><span class="bar"></span><h2>Consultas por usuario · días de la semana</h2></div>
+        <p class="sub">Consultas por usuario y día · líneas independientes</p>
         <div class="chartbox line"><canvas id="lineChart"></canvas><div class="vacio" id="vacioLine"></div></div>
       </div>
     </div>
@@ -188,9 +181,8 @@
    build_data.py leyendo la base de cada agente.
    Estructura:
      DATA[agente].nombre / .descripcion
-     DATA[agente].semanas[semana].dias            -> Lun..Dom
-     DATA[agente].semanas[semana].conversaciones  -> { "Nombre": [7 conteos] }
-     DATA[agente].semanas[semana].consultas       -> { "Nombre": [7 conteos] }
+     DATA[agente].semanas[semana].dias      -> Lun..Dom
+     DATA[agente].semanas[semana].usuarios  -> { "Nombre": [7 conteos, lun..dom] }
    Para refrescar: python3 build_data.py  (o el botón Actualizar)
    ===================================================================== */
 let DATA = window.DASHBOARD_DATA || {};
@@ -204,22 +196,17 @@ const PIE_OTROS  = "#6b7280";
 /* Reserva por si un usuario no viniera en META.colores (data.js viejo). */
 const PALETTE = ["#00594C","#00CC75","#2a78d6","#E76F51","#1E2761","#F4A261","#4a3aa7","#8FC9B0","#2C3E50","#008300"];
 
-const ETIQUETA = {conversaciones:"Conversaciones", consultas:"Consultas"};
-const METRICAS = Object.keys(ETIQUETA);
-
 const agenteSel  = document.getElementById("agenteSel");
-const metricaSel = document.getElementById("metricaSel");
 const sel        = document.getElementById("weekSel");
 const refreshBtn = document.getElementById("refreshBtn");
 
 /* ---- Estado: qué se está mirando ---- */
-let agente  = "";
-let metrica = metricaSel.value;
+let agente = "";
 
 /* ---- Helpers ---- */
 const agentes   = () => Object.keys(DATA);
 const semanasDe = a => Object.keys((DATA[a] && DATA[a].semanas) || {});
-const serie     = (a,s) => (DATA[a].semanas[s] || {})[metrica] || {};
+const serie     = (a,s) => (DATA[a].semanas[s] || {}).usuarios || {};
 const diasDe    = (a,s) => (DATA[a].semanas[s] || {}).dias || ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
 const totalUsuarioSemana = (a,s,u) => serie(a,s)[u].reduce((x,y)=>x+y,0);
 const totalSemana = (a,s) => Object.keys(serie(a,s)).reduce((acc,u)=>acc+totalUsuarioSemana(a,s,u),0);
@@ -257,7 +244,11 @@ function llenarSemanas(){
   const semanas = semanasDe(agente);
   sel.innerHTML = "";
   semanas.forEach(s => { const o=document.createElement("option"); o.value=s; o.textContent=s; sel.appendChild(o); });
-  if(semanas.includes(previa)) sel.value = previa;              // conserva la semana elegida
+  // Se conserva la semana elegida solo si el agente nuevo tuvo movimiento en
+  // ella: así comparar la misma semana entre agentes funciona, pero cambiar a
+  // uno que esa semana no se usó no deja la pantalla en blanco como si el
+  // agente no existiera.
+  if(semanas.includes(previa) && Object.keys(serie(agente, previa)).length) sel.value = previa;
   else if(semanas.length)      sel.value = ultimaConDatos(semanas);
 }
 
@@ -268,8 +259,7 @@ function llenarSemanas(){
 function ultimaConDatos(semanas){
   for(let i = semanas.length - 1; i >= 0; i--){
     const s = semanas[i];
-    if(METRICAS.some(m => Object.keys((DATA[agente].semanas[s]||{})[m] || {}).length))
-      return s;
+    if(Object.keys(serie(agente, s)).length) return s;
   }
   return semanas[semanas.length - 1];
 }
@@ -277,7 +267,7 @@ function ultimaConDatos(semanas){
 /* ==================== 1) BARRAS: por semana ==================== */
 const barChart = new Chart(document.getElementById("barChart"), {
   type:"bar",
-  data:{ labels:[], datasets:[{ label:"Total", data:[], backgroundColor:[], borderRadius:4, maxBarThickness:64 }] },
+  data:{ labels:[], datasets:[{ label:"Consultas", data:[], backgroundColor:[], borderRadius:4, maxBarThickness:64 }] },
   options:{
     responsive:true, maintainAspectRatio:false,
     onClick:(evt, elements)=>{
@@ -346,21 +336,15 @@ function vacio(id, on, texto){
 function render(){
   const info = (META.agentes||{})[agente] || {};
   const semana = sel.value;
-  const etiqueta = ETIQUETA[metrica];
 
-  /* Encabezado y títulos, según el agente y la métrica */
+  /* Lo único que cambia con el agente: quién dice ser el tablero */
   document.getElementById("chipAgente").textContent = DATA[agente] ? (DATA[agente].nombre || agente) : "—";
   document.getElementById("subtituloAgente").textContent = (DATA[agente] && DATA[agente].descripcion) || "";
-  document.getElementById("kpiTotalLab").textContent = etiqueta + " en la semana";
-  document.getElementById("tituloBar").textContent   = etiqueta + " por semana";
-  document.getElementById("tituloLine").textContent  = etiqueta + " por usuario · días de la semana";
-  document.getElementById("subLine").textContent     = etiqueta + " por usuario y día · líneas independientes";
-  document.getElementById("subPie").textContent      = "Top 5 usuarios de la semana · el resto agrupado en «Otros»";
 
   /* Aviso: fuente caída o datos fabricados */
   const avisos = [];
   if(META.demo) avisos.push("<b>Datos de demostración.</b> No salen de ninguna base: se generaron con <code>build_data.py --demo</code>.");
-  if(info.ok === false) avisos.push(`<b>${DATA[agente].nombre}: sin datos.</b> No se pudo leer su base — ${info.detalle||"motivo desconocido"}. Lo que se ve abajo está vacío, no en cero.`);
+  if(info.ok === false) avisos.push(`<b>${DATA[agente].nombre}: sin datos.</b> No se pudo leer su fuente — ${info.detalle||"motivo desconocido"}. Lo que se ve abajo está vacío, no en cero.`);
   const aviso = document.getElementById("aviso");
   aviso.innerHTML = avisos.join("<br>");
   aviso.classList.toggle("on", avisos.length > 0);
@@ -420,7 +404,6 @@ function render(){
   /* Barras: todas las semanas del agente, resaltando la seleccionada */
   const semanas = semanasDe(agente);
   barChart.data.labels = semanas.map(s=>s.split(" · ")[0]);
-  barChart.data.datasets[0].label = etiqueta;
   barChart.data.datasets[0].data = semanas.map(s=>totalSemana(agente,s));
   barChart.data.datasets[0].backgroundColor =
     semanas.map(s=> s===semana ? "#00CC75" : "#00594C");
@@ -429,8 +412,8 @@ function render(){
   /* Estados vacíos: distinguen "no hubo uso" de "no hay datos" */
   const totalAgente = semanas.reduce((acc,s)=>acc+totalSemana(agente,s),0);
   const sinDatos = info.ok === false;
-  const texto = sinDatos ? "Sin datos: la base del agente no respondió"
-                         : "Sin " + etiqueta.toLowerCase() + " registradas";
+  const texto = sinDatos ? "Sin datos: la fuente del agente no respondió"
+                         : "Sin consultas registradas";
   vacio("vacioPie",  total === 0,        texto);
   vacio("vacioLine", total === 0,        texto);
   vacio("vacioBar",  totalAgente === 0,  texto);
@@ -479,7 +462,6 @@ refreshBtn.addEventListener("click", async ()=>{
 });
 
 agenteSel.addEventListener("change", e=>{ agente = e.target.value; llenarSemanas(); render(); });
-metricaSel.addEventListener("change", e=>{ metrica = e.target.value; render(); });
 sel.addEventListener("change", render);
 
 llenarAgentes();

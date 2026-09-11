@@ -5,11 +5,12 @@ Un agente nuevo es un módulo con `NOMBRE`, `DESCRIPCION` y `leer() -> [evento]`
 front— no se toca.
 """
 
-from . import gdp, leia
+from . import analyst, gdp, leia
 
 # clave (la que viaja en data.js y en la URL) -> módulo. El orden es el de los
 # selectores del tablero.
 AGENTES = {
     "leia": leia,
     "gdp": gdp,
+    "analyst": analyst,
 }

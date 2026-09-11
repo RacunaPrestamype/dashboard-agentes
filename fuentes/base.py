@@ -1,14 +1,15 @@
-"""Lo que comparten los dos agentes: el calendario de semanas y la agregación.
+"""Lo que comparten los agentes: el calendario de semanas y la agregación.
 
-Este módulo no sabe de SQLite ni de Postgres. Cada fuente (`leia.py`, `gdp.py`)
-se encarga de su base y devuelve la misma lista de **eventos**:
+Este módulo no sabe de SQLite, de Postgres ni de AWS. Cada fuente (`leia.py`,
+`gdp.py`, `analyst.py`) se encarga de su base y devuelve la misma lista de
+**eventos**:
 
-    {"usuario": "czelada", "cuando": datetime(hora Lima, naive), "tipo": "consulta"}
+    {"usuario": "czelada", "cuando": datetime(hora Lima, naive)}
 
-`tipo` es `conversacion` (se abrió un chat) o `consulta` (una pregunta dentro de
-un chat). Se cuentan los dos porque miden cosas distintas: las conversaciones
-dicen cuántas veces alguien vino a trabajar con el agente, las consultas cuántas
-preguntas hizo. El tablero deja elegir cuál se grafica.
+Un evento es **una consulta**: una pregunta que una persona le hizo al agente.
+Es la unidad que existe en los tres y que significa lo mismo en los tres, aunque
+cada uno la guarde distinto (una fila de `turns`, una de `turnos`, un mensaje de
+rol USER en la memoria de AgentCore).
 
 El ancla de las semanas es **una sola para todos los agentes** (el lunes del
 evento más viejo de cualquiera). Si cada uno numerara desde su propio primer
@@ -26,13 +27,6 @@ LIMA = timezone(timedelta(hours=-5))
 DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun",
          "Jul", "Ago", "Set", "Oct", "Nov", "Dic"]
-
-METRICAS = ("conversaciones", "consultas")
-
-# El `tipo` de un evento es singular (así se lee al construirlo); la serie que
-# alimenta es plural (así se lee en el front). Este mapa es el único lugar donde
-# se cruzan los dos vocabularios.
-SERIE = {"conversacion": "conversaciones", "consulta": "consultas"}
 
 
 # ---------------------------------------------------------------- semanas
@@ -54,17 +48,15 @@ def etiqueta_semana(n: int, ancla: date) -> str:
             f"– {fin.day:02d} {MESES[fin.month - 1]}")
 
 
-def evento(usuario: str, cuando: datetime, tipo: str) -> dict:
-    """Un evento normalizado. `cuando` ya tiene que venir en hora de Lima."""
-    if tipo not in SERIE:
-        raise ValueError(f"tipo de evento desconocido: {tipo!r}")
+def evento(usuario: str, cuando: datetime) -> dict:
+    """Una consulta. `cuando` se normaliza a hora de Lima, venga como venga."""
     if cuando.tzinfo is not None:
         cuando = cuando.astimezone(LIMA).replace(tzinfo=None)
-    return {"usuario": usuario, "cuando": cuando, "tipo": tipo}
+    return {"usuario": usuario, "cuando": cuando}
 
 
 def semana_vacia() -> dict:
-    return {"dias": DIAS, "conversaciones": {}, "consultas": {}}
+    return {"dias": DIAS, "usuarios": {}}
 
 
 # ------------------------------------------------------------- agregación
@@ -73,7 +65,7 @@ def agregar(eventos_por_agente: dict[str, list[dict]], ahora: datetime) -> tuple
 
     Todas las semanas de 1 a la semana en curso existen en todos los agentes,
     aunque estén vacías: así el eje del gráfico de barras no tiene huecos y el
-    selector de semana sirve igual para los dos.
+    selector de semana sirve igual para todos.
     """
     todos = [e["cuando"] for evs in eventos_por_agente.values() for e in evs]
     ancla = lunes_de(min(todos).date()) if todos else lunes_de(ahora.date())
@@ -88,12 +80,11 @@ def agregar(eventos_por_agente: dict[str, list[dict]], ahora: datetime) -> tuple
             n = indice_semana(e["cuando"].date(), ancla)
             if n < 1:
                 continue                      # defensivo: nada antes del ancla
-            serie = semanas[n][SERIE[e["tipo"]]]
-            serie.setdefault(e["usuario"], [0] * 7)[e["cuando"].weekday()] += 1
+            (semanas[n]["usuarios"]
+             .setdefault(e["usuario"], [0] * 7)[e["cuando"].weekday()]) += 1
 
         for s in semanas.values():
-            for m in METRICAS:
-                s[m] = dict(sorted(s[m].items()))
+            s["usuarios"] = dict(sorted(s["usuarios"].items()))
 
         datos[agente] = {etiqueta_semana(n, ancla): semanas[n]
                          for n in sorted(semanas)}
@@ -108,8 +99,7 @@ def usuarios_de(semanas: dict) -> list[str]:
     """
     vistos: list[str] = []
     for s in semanas.values():
-        for m in METRICAS:
-            for u in s[m]:
-                if u not in vistos:
-                    vistos.append(u)
+        for u in s["usuarios"]:
+            if u not in vistos:
+                vistos.append(u)
     return vistos

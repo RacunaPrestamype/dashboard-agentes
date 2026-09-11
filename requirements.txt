@@ -1,5 +1,7 @@
-# Solo hace falta para la fuente GDP (Postgres). LeIA es SQLite: stdlib.
-# Mismo pin que backend/requirements.txt del agente GDP: el driver tiene que
-# hablar el mismo protocolo que su base, y un pin que se desvía es un debug que
-# nadie quiere hacer dos veces.
+# LeIA es SQLite: stdlib, no necesita nada.
+# GDP es Postgres: mismo pin que backend/requirements.txt de ese repo — el
+# driver tiene que hablar el mismo protocolo que su base, y un pin que se
+# desvía es un debug que nadie quiere hacer dos veces.
 psycopg[binary]==3.2.9
+# Analyst Agent: memoria de Bedrock AgentCore y los nombres desde Cognito.
+boto3==1.40.15

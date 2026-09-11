@@ -2,14 +2,14 @@
 # ============================================================================
 # build_data.py — genera data.js leyendo la base de cada agente
 #
-# Un solo tablero para los dos agentes: LeIA (SQLite) e Indicadores GDP
-# (Postgres). Cada fuente vive en `fuentes/` y devuelve la misma lista de
-# eventos; acá se agregan por semana, por usuario y por día, y se escribe el
-# archivo que consume index.html.
+# Un solo tablero para los tres agentes: LeIA (SQLite), Indicadores GDP
+# (Postgres) y Analyst Agent (memoria de Bedrock AgentCore). Cada fuente vive en
+# `fuentes/` y devuelve la misma lista de consultas; acá se agregan por semana,
+# por usuario y por día, y se escribe el archivo que consume index.html.
 #
 # Una fuente caída NO tumba el tablero: el agente queda marcado `ok: false` con
-# el motivo, el otro se muestra igual y el front avisa en pantalla. Un tablero
-# que no abre porque una base de dos no responde no sirve de nada.
+# el motivo, los demás se muestran igual y el front avisa en pantalla. Un tablero
+# que no abre porque una base de tres no responde no sirve de nada.
 #
 # Semanas: la Semana 1 arranca el LUNES del evento más viejo de CUALQUIER agente,
 # y van de lunes a domingo hasta la semana en curso. El ancla es compartida para
@@ -40,8 +40,8 @@ PALETA = ["#00594C", "#00CC75", "#2a78d6", "#E76F51", "#1E2761",
           "#F4A261", "#4a3aa7", "#8FC9B0", "#2C3E50", "#008300"]
 
 
-def _total(semanas: dict, metrica: str) -> int:
-    return sum(sum(sum(v) for v in s[metrica].values()) for s in semanas.values())
+def _total(semanas: dict) -> int:
+    return sum(sum(sum(v) for v in s["usuarios"].values()) for s in semanas.values())
 
 
 def recolectar(claves: list[str]) -> tuple[dict, dict]:
@@ -80,8 +80,7 @@ def construir(eventos: dict, estado: dict, ahora: datetime) -> tuple[dict, dict]
             "ok": estado[clave]["ok"],
             "detalle": estado[clave]["detalle"],
             "usuarios": len(usuarios),
-            "conversaciones": _total(semanas, "conversaciones"),
-            "consultas": _total(semanas, "consultas"),
+            "consultas": _total(semanas),
             "colores": {u: PALETA[i % len(PALETA)] for i, u in enumerate(usuarios)},
         }
 
@@ -116,22 +115,18 @@ def demo() -> tuple[dict, dict]:
         "leia": ["Ana Lucía Acuña", "czelada", "mfelix", "Bruno Dongo",
                  "Silvia Arrascue", "jllacza", "Pamela Rojas"],
         "gdp": ["Ana Lucía Acuña", "Bruno Dongo", "jllacza", "Pamela Rojas"],
+        "analyst": ["nterrazas", "jacuna", "gcastro", "vvicuna", "rochoa"],
     }
     eventos = {}
     for clave, personas in gente.items():
         evs = []
         for semana in range(6):
             lunes = ancla + timedelta(weeks=semana)
-            for _ in range(rnd.randint(6, 20)):
+            for _ in range(rnd.randint(20, 70)):
                 cuando = (datetime.combine(lunes + timedelta(days=rnd.randint(0, 4)),
                                            datetime.min.time())
                           + timedelta(hours=rnd.randint(9, 18), minutes=rnd.randint(0, 59)))
-                quien = rnd.choice(personas)
-                evs.append(base.evento(quien, cuando, "conversacion"))
-                # una conversación trae varias preguntas
-                for _ in range(rnd.randint(1, 6)):
-                    evs.append(base.evento(
-                        quien, cuando + timedelta(minutes=rnd.randint(1, 90)), "consulta"))
+                evs.append(base.evento(rnd.choice(personas), cuando))
         eventos[clave] = evs
 
     estado = {c: {"ok": True, "detalle": "datos fabricados"} for c in gente}
@@ -163,9 +158,9 @@ def main() -> None:
     print(f"   semanas: {len(next(iter(datos.values()))['semanas']) if datos else 0}"
           f" | ancla: {meta['ancla']}")
     for clave, a in meta["agentes"].items():
-        marca = "ok " if a["ok"] else "SIN DATOS"
-        print(f"   {clave:5} {marca} conversaciones: {a['conversaciones']:5} | "
-              f"consultas: {a['consultas']:5} | usuarios: {a['usuarios']:3}"
+        marca = "ok       " if a["ok"] else "SIN DATOS"
+        print(f"   {clave:8} {marca} consultas: {a['consultas']:5} | "
+              f"usuarios: {a['usuarios']:3}"
               + (f" | {a['detalle']}" if not a["ok"] else ""))
 
 

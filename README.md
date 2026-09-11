@@ -1,18 +1,19 @@
 # Tablero de uso de los agentes
 
-Un solo tablero para los dos agentes que están en marcha blanca:
+Un solo tablero para los tres agentes:
 
-| clave  | agente            | qué hace                                  | base                     |
-|--------|-------------------|-------------------------------------------|--------------------------|
-| `leia` | **LeIA**          | consultas a la plataforma Gestora          | SQLite (`gestora.db`)    |
-| `gdp`  | **Indicadores GDP** | diseño de indicadores · Gerencia de Datos | Postgres (rol `tablero`) |
+| clave     | agente              | qué hace                                  | de dónde salen los datos |
+|-----------|---------------------|-------------------------------------------|--------------------------|
+| `leia`    | **LeIA**            | consultas a la plataforma Gestora          | SQLite (`gestora.db`)    |
+| `gdp`     | **Indicadores GDP** | diseño de indicadores · Gerencia de Datos  | Postgres (rol `tablero`) |
+| `analyst` | **Analyst Agent**   | consultas de CS                            | memoria de Bedrock AgentCore |
 
 Es el tablero de LeIA —mismo formato, mismos tres gráficos— con un selector de
-agente arriba. Cada agente guarda su uso en una base distinta y con otros
-nombres de tabla; acá se normalizan a lo mismo y se grafican igual, así comparar
-uno con otro es cambiar un `<select>` y no leer dos pantallas distintas.
+agente arriba. Cada agente guarda su uso en otro lado y con otros nombres; acá
+se normalizan a lo mismo y se grafican igual, así comparar uno con otro es
+cambiar un `<select>` y no leer tres pantallas distintas.
 
-No levanta ningún agente ni escribe en ninguna base: solo lee.
+No levanta ningún agente ni escribe en ninguna fuente: solo lee.
 
 ---
 
@@ -30,22 +31,19 @@ Abajo, los tres gráficos del tablero de LeIA:
 - **Líneas — por usuario y día de la semana.** Una línea por persona, de lunes a
   domingo. Responde *cómo se reparte la semana* y quién sostiene el uso.
 
-### Las dos métricas
+### La unidad es la consulta
 
-El selector **Métrica** cambia qué cuentan los tres gráficos:
-
-- **Conversaciones** — cuántas veces alguien abrió un chat y se puso a trabajar
-  con el agente.
-- **Consultas** — cuántas preguntas hizo dentro de esos chats.
-
-Miden cosas distintas y conviene mirar las dos: cinco conversaciones de una
-pregunta cada una y una conversación de cinco preguntas dan el mismo número de
-consultas y no son el mismo uso.
+Todo el tablero cuenta **consultas**: preguntas que una persona le hizo al
+agente. Es lo único que significa lo mismo en los tres, aunque cada uno la
+guarde distinto —una fila de `turns`, una de `turnos`, un mensaje de rol USER en
+la memoria de AgentCore—. No hay selector de métrica: un tablero donde el mismo
+gráfico puede estar contando dos cosas distintas se lee mal apenas alguien manda
+una captura sin decir qué tenía elegido.
 
 ### Las semanas
 
 La **Semana 1** arranca el lunes del registro más viejo **de cualquiera de los
-dos agentes**, y de ahí van de lunes a domingo hasta la semana en curso. El
+tres agentes**, y de ahí van de lunes a domingo hasta la semana en curso. El
 ancla es compartida a propósito: si cada agente numerara desde su propio primer
 registro, «Semana 5» sería una fecha distinta según cuál esté elegido y el
 selector mentiría al cambiar de uno a otro. El costo es que el agente que
@@ -60,12 +58,12 @@ la última semana **con movimiento**, no en la última del calendario.
 
 ```bash
 cp .env.example .env          # y completar lo que haga falta
-pip install -r requirements.txt   # solo si vas a leer la base de GDP
-make datos                    # genera data.js leyendo las bases
+pip install -r requirements.txt   # psycopg (GDP) y boto3 (Analyst)
+make datos                    # genera data.js leyendo las tres fuentes
 make servir                   # http://localhost:8095
 ```
 
-Sin ninguna base a mano:
+Sin ninguna fuente a mano:
 
 ```bash
 make demo                     # data.js con datos fabricados; el tablero lo avisa
@@ -78,13 +76,14 @@ docker compose up -d --build  # o: make tablero
 ```
 
 El contenedor regenera `data.js` al arrancar y en cada `/regenerar`, así lo que
-se sirve nace fresco de las bases.
+se sirve nace fresco de las fuentes.
 
-### Que una base no responda no es un problema del tablero
+### Que una fuente no responda no es un problema del tablero
 
-Si una fuente falla, ese agente queda marcado *sin datos* con el motivo en
-pantalla y **el otro se muestra igual**. Un tablero que no abre porque una base
-de dos no contesta no le sirve a nadie. `GET /salud` dice cuál está viva.
+Si una fuente falla —la base caída, la sesión de AWS vencida— ese agente queda
+marcado *sin datos* con el motivo en pantalla y **los otros se muestran igual**.
+Un tablero que no abre porque una fuente de tres no contesta no le sirve a
+nadie. `GET /salud` dice cuál está viva.
 
 ---
 
@@ -92,16 +91,25 @@ de dos no contesta no le sirve a nadie. `GET /salud` dice cuál está viva.
 
 Todo por variables de entorno; ninguna es obligatoria.
 
-| variable                | por defecto                                      | qué hace |
-|-------------------------|--------------------------------------------------|----------|
-| `LEIA_DB_PATH`          | `../LeIA/db/gestora.db`                          | el archivo SQLite de LeIA |
-| `LEIA_EXCLUIR_USUARIOS` | `dacuna,admin,cpardave,dbaldeon`                 | cuentas internas; se comparan contra la parte local del correo |
-| `GDP_BD_URL`            | *(vacío)*                                        | Postgres del agente GDP, con el rol `tablero` |
-| `GDP_EXCLUIR_EMAILS`    | `evaluacion@prestamype.com,qa@prestamype.com`    | cuentas de QA y de la batería de evaluación |
-| `HOST` / `PORT`         | `0.0.0.0` / `8080`                               | dónde escucha `serve.py` |
-| `PUERTO_TABLERO`        | `8095`                                           | puerto publicado por compose |
+| variable                   | por defecto                                   | qué hace |
+|----------------------------|-----------------------------------------------|----------|
+| `LEIA_DB_PATH`             | `../LeIA/db/gestora.db`                       | el archivo SQLite de LeIA |
+| `LEIA_EXCLUIR_USUARIOS`    | `dacuna,admin,cpardave,dbaldeon`              | cuentas internas; se comparan contra la parte local del correo |
+| `GDP_BD_URL`               | *(vacío)*                                     | Postgres del agente GDP, con el rol `tablero` |
+| `GDP_EXCLUIR_EMAILS`       | `evaluacion@prestamype.com,qa@prestamype.com` | cuentas de QA y de la batería de evaluación |
+| `AWS_PROFILE`              | `prod`                                        | la sesión de AWS para el Analyst Agent |
+| `ANALYST_MEMORY_ID`        | `prod_analyst_agent_memory-gHFPoM4f9d`        | la memoria de AgentCore que se lee |
+| `ANALYST_COGNITO_POOL`     | *(se busca por nombre)*                       | el user pool del que salen los nombres |
+| `ANALYST_EXCLUIR_USUARIOS` | *(vacío)*                                     | ver abajo |
+| `HOST` / `PORT`            | `0.0.0.0` / `8080`                            | dónde escucha `serve.py` |
+| `PUERTO_TABLERO`           | `8095`                                        | puerto publicado por compose |
+| `UID_HOST` / `GID_HOST`    | `1000`                                        | con qué usuario corre el contenedor, para poder leer `~/.aws` |
 
-En compose, `LEIA_DB_DIR` es la carpeta del host con `gestora.db`.
+**El Analyst no excluye a nadie por defecto.** En LeIA y GDP la lista de cuentas
+internas ya estaba decidida en esos repos; acá no la decidió nadie todavía, y
+`dacuna` sola es un cuarto del tráfico del agente: esconderla por defecto sería
+falsear el uso. Cuando se sepa cuáles son de prueba, van en
+`ANALYST_EXCLUIR_USUARIOS`.
 
 ### El tablero nunca escribe
 
@@ -115,6 +123,8 @@ Cada fuente se conecta con lo mínimo para leer:
 - **GDP** usa el rol `tablero`, que solo tiene `SELECT` (`db/04_rol_tablero.sh`
   en ese repo). Nunca el rol `agente`: ese escribe, y un proceso de reporting no
   tiene por qué poder.
+- **Analyst** solo hace llamadas `list_*` a AgentCore y a Cognito. Las
+  credenciales son las del host, montadas en `/aws` en solo lectura.
 
 Lo único que este proceso escribe es su propio `data.js`.
 
@@ -122,24 +132,28 @@ Lo único que este proceso escribe es su propio `data.js`.
 
 ## 4. De dónde sale cada número
 
-| métrica        | LeIA                              | GDP |
-|----------------|-----------------------------------|-----|
-| conversaciones | una fila de `chats`               | una fila de `conversaciones` |
-| consultas      | una fila de `turns`               | una fila de `turnos` con `estado <> 'en_curso'` |
-| usuario        | `chats.user_id` → `users`         | `conversaciones.usuario_id` → `usuarios` |
-| nombre         | `display_name`, si no el correo sin dominio | `usuarios.nombre`, si no el correo sin dominio |
-| hora           | `created_at` es UTC → se pasa a Lima | `timestamptz` → `AT TIME ZONE 'America/Lima'` |
+|              | LeIA                                 | GDP | Analyst |
+|--------------|--------------------------------------|-----|---------|
+| una consulta | fila de `turns`                      | fila de `turnos` con `estado <> 'en_curso'` | item de rol `USER` en un evento |
+| usuario      | `chats.user_id` → `users`            | `conversaciones.usuario_id` → `usuarios` | `actorId` (el `sub` de Cognito) |
+| nombre       | `display_name`, si no el correo sin dominio | `usuarios.nombre`, si no el correo sin dominio | el correo del user pool, si no el UUID corto |
+| hora         | `created_at` es UTC → se pasa a Lima | `timestamptz` → `AT TIME ZONE 'America/Lima'` | `eventTimestamp` trae tz → se pasa a Lima |
 
-Tres decisiones que vale explicitar:
+Cuatro decisiones que vale explicitar:
 
 - **Ningún turno se filtra por estado en LeIA**, y en GDP solo se dejan fuera los
   `en_curso`. Un turno que terminó en error igual fue una pregunta que alguien
   hizo. Los `en_curso` de GDP son corridas abiertas —o colgadas porque el
   proceso murió—, no preguntas atendidas.
-- **Las conversaciones ocultas de GDP cuentan.** `oculta_en` es el «borrar» del
-  panel lateral, un gesto de la UI: la conversación existió.
 - **La hora es siempre la de Lima.** Sin convertir, todo lo de después de las
   19:00 cae en el día siguiente y los días pico salen corridos.
+- **Los nombres del Analyst se resuelven contra Cognito**, porque el `actorId` es
+  un UUID y un pie con seis UUIDs no dice nada. Si el pool no se puede leer, el
+  tablero muestra el UUID corto y sigue: que no se resuelva un nombre no es
+  motivo para no mostrar el uso.
+- **`actors_map.json` pisa cualquier nombre.** Es la salida manual para los
+  actores que no están en el pool (hoy, tres de nueve): un JSON plano de
+  `actorId` a nombre, en la raíz del repo.
 
 ---
 
@@ -151,16 +165,17 @@ data.js           lo genera build_data.py. El versionado está vacío a propósi
 build_data.py     orquesta: lee cada fuente, agrega y escribe data.js.
 serve.py          sirve la carpeta + /regenerar y /salud.
 fuentes/
-  base.py         semanas, agregación y el formato del evento. No sabe de bases.
-  leia.py         SQLite de LeIA  -> eventos
-  gdp.py          Postgres de GDP -> eventos
+  base.py         semanas, agregación y el formato del evento. No sabe de fuentes.
+  leia.py         SQLite de LeIA        -> consultas
+  gdp.py          Postgres de GDP       -> consultas
+  analyst.py      AgentCore + Cognito   -> consultas
 ```
 
-El corte es ese: **una fuente sabe de su base y de nada más**, y devuelve
+El corte es ese: **una fuente sabe de su origen y de nada más**, y devuelve
 siempre lo mismo:
 
 ```python
-{"usuario": "czelada", "cuando": datetime(hora Lima), "tipo": "consulta"}
+{"usuario": "czelada", "cuando": datetime(hora Lima)}
 ```
 
 `base.py` agrega esos eventos por semana, usuario y día. El front no sabe de
@@ -181,8 +196,8 @@ Nada más: selector, semanas, colores, KPIs y los tres gráficos salen solos.
 | ruta         | qué hace |
 |--------------|----------|
 | `/`          | el tablero |
-| `/regenerar` | relee las bases y reescribe `data.js`. Es el botón «Actualizar» |
-| `/salud`     | si responde la base de cada agente, y si hay `data.js` |
+| `/regenerar` | relee las fuentes y reescribe `data.js`. Es el botón «Actualizar» |
+| `/salud`     | si responde la fuente de cada agente, y si hay `data.js` |
 
 ```bash
 make salud     # curl /salud formateado

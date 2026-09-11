@@ -1,11 +1,12 @@
-# Tablero de uso de los agentes. Un solo servicio: lee las bases de los otros
-# dos repos, no levanta ninguna.
+# Tablero de uso de los agentes. Un solo servicio: lee las fuentes de los otros
+# repos, no levanta ninguna.
 #
-# Las dos bases llegan distinto, porque son distintas:
-#   LeIA  archivo SQLite -> se monta el volumen del stack de LeIA.
-#   GDP   Postgres       -> se entra a su red interna y se le habla a `db`.
-# Por eso el volumen y la red son `external`: son de otros compose, este no los
-# crea ni los borra. Si alguno no existe, `up` falla diciendo cuál falta.
+# Cada agente llega distinto, porque cada uno guarda distinto:
+#   LeIA     archivo SQLite -> se monta el volumen del stack de LeIA.
+#   GDP      Postgres       -> se entra a su red interna y se le habla a `db`.
+#   Analyst  AWS            -> Bedrock AgentCore, con las credenciales del host.
+# El volumen y la red son `external`: son de otros compose, este no los crea ni
+# los borra. Si alguno no existe, `up` falla diciendo cuál falta.
 #
 # En una máquina donde los agentes NO corren en Docker, el volumen se reemplaza
 # por un bind mount a la carpeta que tiene gestora.db, y GDP_BD_URL apunta al
@@ -15,6 +16,9 @@ services:
   dashboard:
     build: .
     container_name: agentes-dashboard
+    # El uid del host, para poder leer el ~/.aws montado (es 0600 de su dueño).
+    # La imagen trae un usuario sin privilegios para cuando no hace falta AWS.
+    user: "${UID_HOST:-1000}:${GID_HOST:-1000}"
     environment:
       LEIA_DB_PATH: /datos/leia/gestora.db
       # Rol de SOLO LECTURA del agente GDP (db/04_rol_tablero.sh en ese repo).
@@ -22,18 +26,27 @@ services:
       # por qué poder. El default con la clave de dev es el mismo que usa el
       # compose de GDP; en un despliegue real se pasa GDP_BD_URL.
       GDP_BD_URL: ${GDP_BD_URL:-postgresql://tablero:dev-solo-local@db:5432/agente}
+      # AWS por sesión MFA: se monta ~/.aws en solo lectura y boto3 usa el
+      # profile. Si la sesión venció, el Analyst queda «sin datos» y los otros
+      # dos se muestran igual.
+      AWS_PROFILE: ${AWS_PROFILE:-prod}
+      AWS_CONFIG_FILE: /aws/config
+      AWS_SHARED_CREDENTIALS_FILE: /aws/credentials
+      ANALYST_MEMORY_ID: ${ANALYST_MEMORY_ID:-prod_analyst_agent_memory-gHFPoM4f9d}
       # Cuentas que no son uso real (internas, QA, la batería de evaluación).
       LEIA_EXCLUIR_USUARIOS: ${LEIA_EXCLUIR_USUARIOS:-dacuna,admin,cpardave,dbaldeon}
       GDP_EXCLUIR_EMAILS: ${GDP_EXCLUIR_EMAILS:-evaluacion@prestamype.com,qa@prestamype.com}
+      # Vacío: todavía no se decidió qué cuentas del Analyst son de prueba.
+      ANALYST_EXCLUIR_USUARIOS: ${ANALYST_EXCLUIR_USUARIOS:-}
       HOST: 0.0.0.0
       PORT: 8080
     volumes:
       # Montaje rw a propósito, aunque el tablero no escriba: la base de LeIA
       # está en WAL y SQLite necesita el -shm para leer lo que todavía vive en
-      # el -wal. La conexión sí es read-only (mode=ro), y el contenedor corre
-      # con un usuario que no es dueño de esos archivos: no puede escribirlos
-      # ni queriendo.
+      # el -wal. La conexión sí es read-only (mode=ro), y el contenedor no es
+      # dueño de esos archivos: no puede escribirlos ni queriendo.
       - leia-db:/datos/leia
+      - ${AWS_DIR:-~/.aws}:/aws:ro
     networks: [ gdp ]
     ports:
       - "${PUERTO_TABLERO:-8095}:8080"
