@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+.env
+# data.js se regenera en cada arranque y en cada /regenerar. El versionado es el
+# fallback vacío; si lo pisás en local, no lo commitees con datos dentro.
+*.db
+*.db-wal
+*.db-shm
+.DS_Store
