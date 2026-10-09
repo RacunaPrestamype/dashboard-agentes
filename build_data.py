@@ -109,7 +109,7 @@ def demo() -> tuple[dict, dict]:
     el front lo avisa en pantalla."""
     import random
     rnd = random.Random(7)
-    ahora = datetime.now().replace(microsecond=0)
+    ahora = base.ahora_lima()
     ancla = base.lunes_de(ahora.date()) - timedelta(weeks=5)
     gente = {
         "leia": ["Ana Lucía Acuña", "czelada", "mfelix", "Bruno Dongo",
@@ -151,7 +151,7 @@ def main() -> None:
             raise SystemExit(2)
 
     eventos, estado = recolectar(claves)
-    datos, meta = construir(eventos, estado, datetime.now())
+    datos, meta = construir(eventos, estado, base.ahora_lima())
     escribir(datos, meta)
 
     print(f"OK -> {OUT_PATH}")

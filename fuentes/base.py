@@ -24,6 +24,17 @@ from datetime import date, datetime, timedelta, timezone
 # Perú, UTC-5 y sin horario de verano: un offset fijo alcanza.
 LIMA = timezone(timedelta(hours=-5))
 
+
+def ahora_lima() -> datetime:
+    """El «ahora» del tablero: naive y en hora de Lima, como los eventos.
+
+    datetime.now() a secas da la hora de la máquina, que dentro del contenedor
+    es UTC: la marca de «Actualizado» saldría 5 horas adelantada y, de 19:00 a
+    medianoche, la semana en curso sería la del día siguiente.
+    """
+    return datetime.now(LIMA).replace(tzinfo=None)
+
+
 DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun",
          "Jul", "Ago", "Set", "Oct", "Nov", "Dic"]
